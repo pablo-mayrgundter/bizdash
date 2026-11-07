@@ -17,7 +17,7 @@ optional plugin cards, pinned to a bizdash release.
 ## Quick start
 
 ```sh
-pip install "git+https://github.com/pablo-mayrgundter/bizdash@v0.1.0"
+pip install "git+https://github.com/pablo-mayrgundter/bizdash@v0.1.0"   # or @<commit sha>
 python -m bizdash serve --demo          # http://127.0.0.1:5077, synthetic data
 ```
 
@@ -221,7 +221,22 @@ plugin that inserts a `<link>`.
 
 To upgrade, change the version in the workflows. Releases follow semantic
 versioning; release candidates (`v0.1.0-rc.1`) come first so deployments can
-build against them before a release is final. bizdash's own demo is
+build against them before a release is final.
+
+**Pinning by commit.** The `@ref` and `version` also take a full commit SHA,
+which is how a deployment builds against a candidate before it is tagged (or
+against any commit). Keep the two equal, in both workflows: the reusable
+workflow cannot see its own `@ref`, so `version` is what gets installed.
+
+```yaml
+    uses: pablo-mayrgundter/bizdash/.github/workflows/deploy.yml@<40-character commit sha>
+    with:
+      version: <the same sha>
+```
+
+`pip install "git+https://github.com/pablo-mayrgundter/bizdash@<sha>"` installs
+the same commit locally. Move to the tag once it exists: a tag names a
+release, a SHA only a commit. bizdash's own demo is
 published from `main` the same way (`pages.yml`); open it with `?demo=1`.
 
 ## Window semantics

@@ -29,3 +29,5 @@ python -m http.server -d _site 8080                # http://localhost:8080/?demo
 To go live, set `propertyId` and `clientId` in `site/bizdash.config.json`
 (see the bizdash README, "Auth"), enable GitHub Pages on the `gh-pages`
 branch, and push. To upgrade, change the two `v0.1.0` pins in each workflow.
+To build against a release candidate before it is tagged, pin both to the
+same full commit SHA instead (see the bizdash README, "Pinning by commit").

@@ -16,7 +16,7 @@ on:
   workflow_call:
     inputs:
       version:
-        description: "bizdash release to build with, e.g. v0.1.0 (keep it equal to the workflow's @ref)"
+        description: "bizdash release tag or full commit SHA to build with, e.g. v0.1.0 (keep it equal to the workflow's @ref)"
         type: string
         required: true
       site-dir:
