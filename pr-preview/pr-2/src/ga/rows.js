@@ -96,6 +96,56 @@ export function splitByComparison(payload) {
   }));
 }
 
+// ---- row limits under comparisons ------------------------------------------
+
+/** The most rows GA returns in one page. */
+export const MAX_LIMIT = 250000;
+
+/**
+ * The `limit` that leaves room for `n` rows in every segment. Under
+ * comparisons GA's `limit` counts the rows of all of them together, so
+ * `limit: 10` with three comparisons gives each three or four.
+ */
+export const comparedLimit = (n, comparisons) =>
+  Math.min(MAX_LIMIT, n * Math.max(1, comparisons ? comparisons.length : 1));
+
+/** Whether a payload carries the comparison column, last, as assertCompared requires. */
+export const isCompared = payload => (payload?.dimensionHeaders || []).at(-1)?.name === COMPARISON_DIM;
+const lastValue = r => r.dimensionValues?.[r.dimensionValues.length - 1]?.value;
+
+/**
+ * The comparisons that came back with fewer than `n` rows while GA held more
+ * than it returned. GA ranks every segment's rows together, so a small
+ * segment can be crowded out of even n × comparisons rows by larger ones.
+ * A payload with no comparison column has none (its reader rejects it).
+ */
+export function shortSegments(payload, n, comparisons) {
+  if (!comparisons || !isCompared(payload)) return [];
+  const rows = payload.rows || [];
+  if (!(+(payload.rowCount || 0) > rows.length)) return [];
+  const count = new Map();
+  for (const r of rows) count.set(lastValue(r), (count.get(lastValue(r)) || 0) + 1);
+  return comparisons.filter(c => (count.get(c.name) || 0) < n);
+}
+
+/** A comparisons payload with at most `n` rows per segment, in GA's order. */
+export function capSegments(payload, n) {
+  const seen = new Map();
+  const rows = (payload.rows || []).filter(r => {
+    const k = lastValue(r), c = (seen.get(k) || 0) + 1;
+    seen.set(k, c);
+    return c <= n;
+  });
+  return { ...payload, rows };
+}
+
+/** A comparisons payload with one segment's rows replaced by a plain payload's, asked for that segment alone. */
+export function withSegmentRows(payload, name, plain) {
+  const rows = (payload.rows || []).filter(r => lastValue(r) !== name);
+  for (const r of plain?.rows || []) rows.push({ ...r, dimensionValues: [...(r.dimensionValues || []), { value: name }] });
+  return { ...payload, rows };
+}
+
 // ---- FilterExpression builders --------------------------------------------
 
 export const inList = (fieldName, values, { caseSensitive } = {}) =>

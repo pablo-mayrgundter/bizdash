@@ -10,7 +10,7 @@ import * as time from "./time.js";
 import * as charts from "./ui/charts.js";
 import * as reports from "./core/reports.js";
 
-export const VERSION = "0.1.0-rc.1";
+export const VERSION = "0.1.0";
 const { el } = format;
 const CARD_ID = /^[a-z0-9][a-z0-9:_.-]*$/i;
 const REFRESH = new Set(["range", "realtime", "once"]);
@@ -20,6 +20,14 @@ function sizeOf(def) {
   if (def.kind === "tile") return "tile";
   return def.span <= 4 ? "third" : def.span <= 8 ? "wide" : "full";
 }
+
+/**
+ * Where a card's storage lives: per mode, and per property outside the demo,
+ * so synthetic data never lands under a real property's key (a demo page can
+ * carry a configured property id).
+ */
+export const storageScope = (mode, propertyId) =>
+  (mode === "demo" || !propertyId ? String(mode) : `${mode}:${propertyId}`);
 
 export function createDashboard({ config, ga, mode, root, storage = globalThis.localStorage, params = new URLSearchParams() }) {
   const cards = new Map();           // id -> {def, frame, data, error, gen, index}
@@ -79,7 +87,7 @@ export function createDashboard({ config, ga, mode, root, storage = globalThis.l
   const internalIds = config.internalUsers?.ids || {};
 
   function scopedStorage(id) {
-    const prefix = `bizdash.card.${id}.${config.propertyId || mode}.`;
+    const prefix = `bizdash.card.${id}.${storageScope(mode, config.propertyId)}.`;
     return {
       get(k) { try { return JSON.parse(storage.getItem(prefix + k)); } catch (e) { return null; } },
       set(k, v) { try { storage.setItem(prefix + k, JSON.stringify(v)); } catch (e) { /* blocked or full */ } },
@@ -107,6 +115,7 @@ export function createDashboard({ config, ga, mode, root, storage = globalThis.l
       segments: Object.freeze({
         enabled: segmentsEnabled, current: state.segment, label: segLabel, rule: config.traffic?.rule || null,
         view: data => reports.segmentView(data, state.segment),
+        ranked: body => reports.rankedReport(ga, body, reports.comparisonsFor(config)),
         applied: data => reports.appliedSegment(data, state.segment),
         isNonstandard: row => (config.traffic ? rules.isNonstandard(row, config.traffic.rule) : null),
         classifyHosts: hosts => (config.traffic ? rules.classifyHosts(hosts, config.traffic.rule) : null),
