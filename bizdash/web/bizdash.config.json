@@ -4,41 +4,136 @@
   "propertyId": "",
   "clientId": "",
   "events": {
-    "item_open": { "label": "Item opens", "unit": "opens" },
-    "sign_up": { "label": "Sign-ups" },
-    "purchase": { "label": "Purchases" }
+    "item_open": {
+      "label": "Item opens",
+      "unit": "opens"
+    },
+    "sign_up": {
+      "label": "Sign-ups"
+    },
+    "purchase": {
+      "label": "Purchases"
+    }
   },
-  "chart": { "secondary": "item_open" },
+  "chart": {
+    "secondary": "item_open"
+  },
   "tiles": [
-    { "event": "sign_up", "label": "Sign-ups" },
-    { "event": "purchase", "label": "Purchases" }
+    {
+      "event": "sign_up",
+      "label": "Sign-ups"
+    },
+    {
+      "event": "purchase",
+      "label": "Purchases"
+    }
   ],
   "breakdowns": [
-    { "key": "sources", "title": "Users by source", "dimension": "sessionSource" },
-    { "key": "pages", "title": "Users by page", "dimension": "pagePath" },
-    { "key": "countries", "title": "Item opens + users by country", "dimension": "country", "pairEvent": "item_open" }
+    {
+      "key": "sources",
+      "title": "Users by source",
+      "dimension": "sessionSource"
+    },
+    {
+      "key": "pages",
+      "title": "Users by page",
+      "dimension": "pagePath"
+    },
+    {
+      "key": "countries",
+      "title": "Item opens + users by country",
+      "dimension": "country",
+      "pairEvent": "item_open"
+    }
   ],
   "funnel": {
     "steps": [
-      { "key": "opened", "label": "Opened an item", "short": "Opened", "events": ["item_open"] },
-      { "key": "signup", "label": "Signed up", "short": "Signed up", "events": ["sign_up"] },
-      { "key": "purchase", "label": "Purchased", "short": "Bought", "events": ["purchase"] },
-      { "key": "refund", "label": "Refunded", "short": "Refund", "events": ["refund"] }
+      {
+        "key": "opened",
+        "label": "Opened an item",
+        "short": "Opened",
+        "events": [
+          "item_open"
+        ]
+      },
+      {
+        "key": "signup",
+        "label": "Signed up",
+        "short": "Signed up",
+        "events": [
+          "sign_up"
+        ]
+      },
+      {
+        "key": "purchase",
+        "label": "Purchased",
+        "short": "Bought",
+        "events": [
+          "purchase"
+        ]
+      },
+      {
+        "key": "refund",
+        "label": "Refunded",
+        "short": "Refund",
+        "events": [
+          "refund"
+        ]
+      }
     ]
   },
-  "conversions": { "events": ["sign_up", "purchase"] },
+  "conversions": {
+    "events": [
+      "sign_up",
+      "purchase"
+    ]
+  },
   "internalUsers": {
     "dimension": "customEvent:client_id",
-    "ids": { "demo.internal.1": "QA browser" },
+    "ids": {
+      "demo.internal.1": "QA browser"
+    },
     "label": "internal"
   },
-  "traffic": { "siteHosts": ["www.example.com", "example.com"] },
-  "links": { "errorTracker": "https://errors.example.com/search?q={id}" },
+  "traffic": {
+    "siteHosts": [
+      "www.example.com",
+      "example.com"
+    ]
+  },
+  "links": {
+    "errorTracker": "https://errors.example.com/search?q={id}",
+    "extra": [
+      {
+        "label": "About bizdash",
+        "url": "https://github.com/pablo-mayrgundter/bizdash"
+      }
+    ]
+  },
   "demo": {
     "events": [
-      { "name": "item_open", "rate": 0.32, "repeat": 4, "params": { "item_kind": ["article", "video", "dataset"] } },
-      { "name": "sign_up", "rate": 0.07, "requires": "item_open" },
-      { "name": "purchase", "rate": 0.25, "requires": "sign_up" }
+      {
+        "name": "item_open",
+        "rate": 0.32,
+        "repeat": 4,
+        "params": {
+          "item_kind": [
+            "article",
+            "video",
+            "dataset"
+          ]
+        }
+      },
+      {
+        "name": "sign_up",
+        "rate": 0.07,
+        "requires": "item_open"
+      },
+      {
+        "name": "purchase",
+        "rate": 0.25,
+        "requires": "sign_up"
+      }
     ]
   }
 }

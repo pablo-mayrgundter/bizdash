@@ -89,6 +89,13 @@ function footer(dash) {
   if (q?.tokensPerHour) parts.push(`GA quota: ${fmt(q.tokensPerHour.remaining)} tokens left this hour, `
     + `${fmt(q.tokensPerDay?.remaining)} today`);
   f.textContent = parts.join(" · ");
+  // links.extra: [{label, url}] from the config, e.g. a team runbook
+  for (const l of dash.config.links.extra || []) {
+    if (!l?.url || !/^https?:\/\//.test(l.url)) continue;
+    const a = document.createElement("a");
+    a.href = l.url; a.textContent = l.label || l.url; a.target = "_blank"; a.rel = "noopener";
+    f.append(" · ", a);
+  }
 }
 
 async function start() {

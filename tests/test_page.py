@@ -132,3 +132,10 @@ def test_copy_data_snapshot(open_page, static_url):
 def test_phone_width_has_no_horizontal_scroll(open_page, static_url):
     page = open_page(demo(static_url), width=PHONE)
     assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth")
+
+
+def test_footer_names_version_mode_rule_and_extra_links(open_page, static_url):
+    page = open_page(demo(static_url))
+    foot = page.text_content("#pageFoot")
+    assert "bizdash 0.1.0" in foot and "demo data" in foot and "traffic rule r" in foot
+    assert page.get_attribute("#pageFoot a", "href").startswith("https://")
