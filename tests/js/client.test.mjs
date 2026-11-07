@@ -63,3 +63,26 @@ test("direct: a 401 drops the token and retries once; a second 401 asks for sign
   assert.equal((await t2.post("runReport", {})).status, 401);
   assert.equal(expired, 1);
 });
+
+test("direct: a 403 for insufficient scopes refuses the token and asks for sign-in, without retrying", async () => {
+  const tokens = { token: "T1", ensureToken: async () => {}, refused: [], refuseScopes(t) { this.refused.push(t); } };
+  const why = [];
+  let calls = 0;
+  const body = JSON.stringify({ error: { code: 403, message: "Request had insufficient authentication scopes.",
+    details: [{ reason: "ACCESS_TOKEN_SCOPE_INSUFFICIENT" }] } });
+  const t = directTransport({ tokens, propertyId: "1", onSessionExpired: w => why.push(w),
+    fetchFn: async () => { calls++; return { status: 403, ok: false, text: async () => body }; } });
+  assert.equal((await t.post("runReport", {})).status, 403);
+  assert.equal(calls, 1, "no retry: the same token can't succeed");
+  assert.deepEqual(tokens.refused, ["T1"]);
+  assert.deepEqual(why, [{ missingScope: true }]);
+});
+
+test("direct: other 403s (no access to the property) are passed through untouched", async () => {
+  const tokens = { token: "T1", ensureToken: async () => {}, refuseScopes() { throw new Error("must not refuse"); } };
+  let expired = 0;
+  const t = directTransport({ tokens, propertyId: "1", onSessionExpired: () => expired++,
+    fetchFn: async () => ({ status: 403, ok: false, text: async () => '{"error":{"message":"User does not have sufficient permissions for this property."}}' }) });
+  assert.equal((await t.post("runReport", {})).status, 403);
+  assert.equal(expired, 0);
+});

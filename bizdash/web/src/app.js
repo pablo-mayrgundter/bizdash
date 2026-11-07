@@ -14,7 +14,7 @@ import { createDashboard, loadPlugins, VERSION } from "./dashboard.js";
 import { registerCoreCards, rangeButtonLabel } from "./cards/core.js";
 import { createGA, demoTransport, directTransport, serverTransport } from "./ga/client.js";
 import { createDemoApi } from "./ga/demo.js";
-import { createTokenManager } from "./ga/auth.js";
+import { createTokenManager, MISSING_SCOPE_MESSAGE } from "./ga/auth.js";
 import { fmt } from "./format.js";
 
 const $ = id => document.getElementById(id);
@@ -132,7 +132,10 @@ async function start() {
       onRecovered: () => { if (startedDirect.resume) startedDirect.resume(); },
     });
     transport = directTransport({ tokens, propertyId: config.propertyId,
-      onSessionExpired: () => { $("signin").hidden = false; } });
+      onSessionExpired: (why = {}) => {
+        $("signin").hidden = false;
+        if (why.missingScope) notice(MISSING_SCOPE_MESSAGE);
+      } });
   }
   const ga = createGA({ transport, mode, maxConcurrent: config.ga.maxConcurrent,
     reportTtlMs: config.ga.reportCacheSeconds * 1000, realtimeTtlMs: config.ga.realtimeCacheSeconds * 1000 });

@@ -4,6 +4,18 @@ All notable changes to bizdash. Versions follow semantic versioning; release
 candidates are tagged before each release so deployments can build against
 them first.
 
+## 0.1.1
+
+- **Sign-in without the Analytics scope.** Google's consent screen lets a
+  viewer untick "See and download your Google Analytics data", and sign-in
+  still succeeds, with a token that gets "Request had insufficient
+  authentication scopes" (403) on every report. Such a grant is now refused
+  and not stored, a GA 403 for scopes drops the token, and the dashboard says
+  what to tick. The next sign-in asks for consent again so the boxes are
+  shown.
+- **Release workflow.** `gh release create --target` makes the tag on GitHub;
+  the runner needs no git identity and pushes no tag.
+
 ## 0.1.0
 
 The first release. Fixes found building deployments on 0.1.0-rc.1:
