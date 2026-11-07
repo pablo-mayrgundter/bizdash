@@ -56,8 +56,8 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ inputs.tag }}
           PRE: ${{ inputs.prerelease }}
+        # gh makes the tag on GitHub, at the checked-out commit: no git
+        # identity is needed on the runner, and no tag push.
         run: |
-          git tag -a "$TAG" -m "bizdash $TAG"
-          git push origin "refs/tags/$TAG"
           flag=""; [ "$PRE" = "true" ] && flag="--prerelease"
-          gh release create "$TAG" --title "bizdash $TAG" --notes-file notes.md $flag
+          gh release create "$TAG" --target "$(git rev-parse HEAD)" --title "bizdash $TAG" --notes-file notes.md $flag
