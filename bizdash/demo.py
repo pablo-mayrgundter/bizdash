@@ -170,6 +170,20 @@ def ga_match(expr, get):
     raise GAError(400, f"unsupported filter {json.dumps(f)}")
 
 
+def _js_string(v):
+    """JavaScript's String() for a config value: GA dimension values are strings, and
+    `bizdash check` asks for them, but a number in demo params must not crash a join."""
+    if isinstance(v, str):
+        return v
+    if v is None:
+        return "null"
+    if isinstance(v, bool):
+        return "true" if v else "false"
+    if isinstance(v, float) and v.is_integer() and abs(v) < 1e21:
+        return str(int(v))
+    return str(v) if isinstance(v, (int, float)) else json.dumps(v, separators=(",", ":"))
+
+
 _JS_DECIMAL = re.compile(r"[+-]?(\d+\.?\d*|\.\d+)([eE][+-]?\d+)?")
 
 
@@ -363,7 +377,7 @@ class DemoAPI:
                     for i in range(n):
                         params = {}
                         for k, vals in (e.get("params") or {}).items():
-                            params[k] = vals[math.floor(r() * len(vals))]
+                            params[k] = _js_string(vals[math.floor(r() * len(vals))])
                         if self.int_param:
                             params[self.int_param] = s["cid"]
                         ev.append({"name": e["name"], "page": pages[min(i, len(pages) - 1)], "params": params})

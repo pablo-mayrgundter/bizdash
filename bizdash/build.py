@@ -3,7 +3,8 @@
 The packaged dashboard is copied to ``--out``, then the deployment's site
 directory is laid over it: its bizdash.config.json, its plugin cards, and any
 extra assets. The result is what GitHub Pages (or any static host) serves.
-The config is validated and every plugin path must exist in the output.
+The config is validated (its demo{} too) and every plugin path must exist in
+the output.
 """
 
 import json
@@ -11,7 +12,7 @@ import shutil
 from pathlib import Path
 
 from . import WEB_DIR, __version__
-from .config import ConfigError, resolve
+from .config import ConfigError, demo_errors, resolve
 
 CORE = ("index.html", "styles.css", "src")
 
@@ -47,6 +48,7 @@ def build_site(out_dir, site_dir=None, force=False, check=True):
         raise ConfigError(f"{cfg_path}: {e}") from e
     cfg, errors, warns = resolve(raw)
     warnings += warns
+    errors += demo_errors(cfg["demo"])
     for p in cfg["plugins"]:
         if not (out / p).is_file():
             errors.append(f"plugin {p} is not in the site")

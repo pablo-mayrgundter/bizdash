@@ -173,7 +173,7 @@ export function createDemoApi(cfg = {}, { now = Date.now() } = {}) {
           const n = 1 + (ev.repeat ? Math.floor(r() * r() * ev.repeat) : 0);
           for (let i = 0; i < n; i++) {
             const params = {};
-            for (const [k, vals] of Object.entries(ev.params || {})) params[k] = vals[Math.floor(r() * vals.length)];
+            for (const [k, vals] of Object.entries(ev.params || {})) params[k] = String(vals[Math.floor(r() * vals.length)]);
             if (intParam) params[intParam] = s.cid;
             s.events.push({ name: ev.name, page: pages[Math.min(i, pages.length - 1)], params });
           }

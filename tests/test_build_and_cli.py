@@ -65,3 +65,67 @@ def test_cli_check_and_build(tmp_path, capsys):
     bad.write_text('{"ranges": []}')
     with pytest.raises(SystemExit):
         main(["check", "--config", str(bad)])
+
+
+def _check(tmp_path, capsys, cfg, files=(), site=True):
+    d = tmp_path / "site"
+    d.mkdir(exist_ok=True)
+    (d / "bizdash.config.json").write_text(json.dumps(cfg))
+    for f in files:
+        (d / f).parent.mkdir(parents=True, exist_ok=True)
+        (d / f).write_text("export default () => {};")
+    args = ["check", "--site", str(d)] if site else ["check", "--config", str(d / "bizdash.config.json")]
+    try:
+        main(args)
+    except SystemExit:
+        return capsys.readouterr().err
+    assert "config ok" in capsys.readouterr().out
+    return ""
+
+
+def test_check_validates_demo(tmp_path, capsys):
+    ok = {"demo": {"events": [{"name": "a", "rate": 0.5, "params": {"kind": ["x", "y"]}},
+                              {"name": "b", "rate": 1, "requires": "a", "repeat": 2}]}}
+    assert _check(tmp_path, capsys, ok) == ""
+    err = _check(tmp_path, capsys, {"demo": {"events": [
+        {"name": "b", "rate": 0.2, "requires": "a"},
+        {"name": "a", "rate": 1.5},
+        {"name": "c", "rate": -0.1, "requires": "page_view"},
+        {"name": "d", "rate": "0.3", "params": {"plan": [1, "pro"], "tier": []}},
+        {"rate": 0.1},
+    ], "usersPerHour": 0}})
+    assert 'demo.events[0] "b": requires "a", which is listed after it; list "a" first' in err
+    assert 'demo.events[1] "a": rate must be a number from 0 to 1 (a probability), not 1.5' in err
+    assert 'demo.events[2] "c": rate must be a number from 0 to 1 (a probability), not -0.1' in err
+    assert 'demo.events[2] "c": requires "page_view", which is not an event listed before it' in err
+    assert 'demo.events[3] "d": rate must be a number from 0 to 1 (a probability), not "0.3"' in err
+    assert 'demo.events[3] "d": params.plan values must be strings, as GA reports them (write "1", not 1)' in err
+    assert 'demo.events[3] "d": params.tier must be a non-empty list of values' in err
+    assert "demo.events[4] needs a name" in err
+    assert "demo.usersPerHour must be a positive number, not 0" in err
+    # `build` refuses the same demo{}
+    site = tmp_path / "site"
+    with pytest.raises(ConfigError, match="rate must be a number from 0 to 1"):
+        build_site(tmp_path / "out", site)
+
+
+def test_check_finds_missing_plugins_relative_to_the_site(tmp_path, capsys):
+    cfg = {"plugins": ["cards/here.js", "cards/gone.js"]}
+    err = _check(tmp_path, capsys, cfg, files=["cards/here.js"])
+    assert "plugin cards/gone.js does not exist in" in err and "here.js" not in err
+    err = _check(tmp_path, capsys, cfg, files=["cards/here.js"], site=False)     # --config: its own directory
+    assert "plugin cards/gone.js does not exist in" in err
+    assert _check(tmp_path, capsys, {"plugins": ["cards/here.js"]}) == ""
+    assert _check(tmp_path, capsys, {"plugins": ["cards/here.js"]}, site=False) == ""
+
+
+def test_demo_params_that_are_numbers_do_not_crash_either_demo():
+    from bizdash.demo import DemoAPI
+    cfg = load()[0]
+    cfg["demo"] = {**cfg["demo"], "events": [{"name": "item_open", "rate": 0.5, "params": {"size": [1, 2.0, True]}}]}
+    status, p = DemoAPI(cfg, now=1793806200).post("runReport", {
+        "dateRanges": [{"startDate": "today", "endDate": "today"}], "dimensions": [{"name": "customEvent:size"}],
+        "metrics": [{"name": "eventCount"}], "dimensionFilter": {"filter": {"fieldName": "eventName",
+        "inListFilter": {"values": ["item_open"]}}}})
+    assert status == 200
+    assert sorted(r["dimensionValues"][0]["value"] for r in p["rows"]) == ["1", "2", "true"]

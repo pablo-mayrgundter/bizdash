@@ -54,3 +54,10 @@ test("deterministic for a given now", async () => {
   const body = { dateRanges: [{ startDate: "29daysAgo", endDate: "today" }], dimensions: [{ name: "eventName" }], metrics: [{ name: "totalUsers" }] };
   assert.equal((await again.post("runReport", body)).text, (await api.post("runReport", body)).text);
 });
+
+test("demo params that are numbers come back as strings, as GA's dimension values are", async () => {
+  const c = { ...cfg, demo: { ...cfg.demo, events: [{ name: "item_open", rate: 0.5, params: { size: [1, 2.0, true] } }] } };
+  const p = createDemoApi(c, { now: NOW }).runReport({ dateRanges: today, dimensions: [{ name: "customEvent:size" }],
+    metrics: [{ name: "eventCount" }], dimensionFilter: { filter: { fieldName: "eventName", inListFilter: { values: ["item_open"] } } } });
+  assert.deepEqual(p.rows.map(r => r.dimensionValues[0].value).sort(), ["1", "2", "true"]);
+});

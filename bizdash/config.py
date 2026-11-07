@@ -184,15 +184,86 @@ def resolve(raw):
     return cfg, errors, warnings
 
 
-def load(path=None):
+def _is_number(v):
+    return isinstance(v, (int, float)) and not isinstance(v, bool)
+
+
+def demo_errors(demo):
+    """What `bizdash check` and `build` find wrong in `demo{}`, the synthetic data's
+    shape. The page and the Python demo read it as given, so a mistake here makes
+    an event that never fires, a rate that is not a probability, or a crash."""
+    if not _is_obj(demo):
+        return ["demo must be an object"]
+    errors = []
+    if "usersPerHour" in demo and not (_is_number(demo["usersPerHour"]) and demo["usersPerHour"] > 0):
+        errors.append(f"demo.usersPerHour must be a positive number, not {json.dumps(demo['usersPerHour'])}")
+    if "siteHost" in demo and not (isinstance(demo["siteHost"], str) and demo["siteHost"]):
+        errors.append("demo.siteHost must be a host name")
+    cds = demo.get("customDimensions", [])
+    if not isinstance(cds, list) or not all(isinstance(c, str) and c for c in cds):
+        errors.append("demo.customDimensions must list parameter names")
+    events = demo.get("events", [])
+    if not isinstance(events, list):
+        return errors + ["demo.events must be a list"]
+    names = [e.get("name") if _is_obj(e) else None for e in events]
+    for i, e in enumerate(events):
+        if not _is_obj(e):
+            errors.append(f"demo.events[{i}] must be an object")
+            continue
+        name = e.get("name")
+        at = f'demo.events[{i}] "{name}"' if isinstance(name, str) and name else f"demo.events[{i}]"
+        if not (isinstance(name, str) and name):
+            errors.append(f"{at} needs a name")
+        rate = e.get("rate")
+        if not (_is_number(rate) and 0 <= rate <= 1):
+            errors.append(f"{at}: rate must be a number from 0 to 1 (a probability), not {json.dumps(rate)}")
+        req = e.get("requires")
+        if req is not None and req not in names[:i]:
+            if req in names[i + 1:]:
+                errors.append(f'{at}: requires "{req}", which is listed after it; list "{req}" first '
+                              "(events fire in list order, so this one never would)")
+            else:
+                errors.append(f'{at}: requires {json.dumps(req)}, which is not an event listed before it in demo.events')
+        rep = e.get("repeat")
+        if rep is not None and not (isinstance(rep, int) and not isinstance(rep, bool) and rep >= 0):
+            errors.append(f"{at}: repeat must be a whole number, not {json.dumps(rep)}")
+        params = e.get("params")
+        if params is None:
+            continue
+        if not _is_obj(params):
+            errors.append(f"{at}: params must map each parameter to a list of values")
+            continue
+        for k, vals in params.items():
+            if not isinstance(vals, list) or not vals:
+                errors.append(f"{at}: params.{k} must be a non-empty list of values")
+            elif not all(isinstance(v, str) for v in vals):
+                bad = next(v for v in vals if not isinstance(v, str))
+                errors.append(f"{at}: params.{k} values must be strings, as GA reports them "
+                              f"(write {json.dumps(json.dumps(bad))}, not {json.dumps(bad)})")
+    return errors
+
+
+def plugin_errors(cfg, site_dir):
+    """Plugin paths that are not files in the site directory (or the packaged
+    dashboard, which `build` lays the site over)."""
+    site = Path(site_dir) if site_dir else WEB_DIR
+    return [f"plugin {p} does not exist in {site}" for p in cfg["plugins"]
+            if is_safe_relative_path(p) and not (site / p).is_file() and not (WEB_DIR / p).is_file()]
+
+
+def load(path=None, site_dir=None, strict=False):
     """Load and resolve a config file (the package's demo config by default).
-    Raises ConfigError on errors; warnings are returned alongside."""
+    Raises ConfigError on errors; warnings are returned alongside. `strict`
+    (`bizdash check`) also checks `demo{}` and that each plugin exists in
+    `site_dir` (default: the config's own directory)."""
     path = Path(path) if path else WEB_DIR / "bizdash.config.json"
     try:
         raw = json.loads(path.read_text())
     except (OSError, ValueError) as e:
         raise ConfigError(f"{path}: {e}") from e
     cfg, errors, warnings = resolve(raw)
+    if strict:
+        errors += demo_errors(cfg["demo"]) + plugin_errors(cfg, site_dir or path.parent)
     if errors:
-        raise ConfigError(f"invalid {path}: " + "; ".join(errors))
+        raise ConfigError(f"invalid {path}:\n  " + "\n  ".join(errors))
     return cfg, warnings

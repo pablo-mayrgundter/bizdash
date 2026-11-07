@@ -110,8 +110,12 @@ and a complete example.
 | `refresh`, `ga` | polling intervals; GA concurrency and cache TTLs |
 | `demo` | `{siteHost, usersPerHour, events: [{name, rate, repeat, requires, params}], customDimensions}`: the shape of the synthetic data |
 
-`python -m bizdash check --config path` validates a config with the same rules
-the page applies (the Python and JavaScript resolvers are tested to agree).
+`python -m bizdash check --config path` (or `--site DIR`) validates a config
+with the same rules the page applies (the Python and JavaScript resolvers are
+tested to agree), and then two things the page cannot: that `demo{}` is sound
+(each `requires` names an event listed before it, every `rate` is in [0, 1],
+parameter values are strings) and that every plugin path exists in the site
+directory, the config's own directory by default. `build` checks both too.
 
 **Funnel steps.** Each step is one report: people (`totalUsers`) by first
 channel whose events are in `events`, AND the step's own `filter` (any GA4

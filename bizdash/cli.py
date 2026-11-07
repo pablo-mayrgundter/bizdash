@@ -8,10 +8,10 @@ from . import __version__
 from .config import ConfigError, load
 
 
-def _config(args):
+def _config(args, strict=False):
     site = getattr(args, "site", None)
     path = args.config or (Path(site) / "bizdash.config.json" if site and (Path(site) / "bizdash.config.json").exists() else None)
-    cfg, warnings = load(path)
+    cfg, warnings = load(path, site_dir=site, strict=strict)
     for w in warnings:
         print(f"config: {w}", file=sys.stderr)
     return cfg
@@ -38,7 +38,7 @@ def cmd_build(args):
 
 
 def cmd_check(args):
-    _config(args)
+    _config(args, strict=True)
     print("config ok")
 
 
@@ -81,7 +81,7 @@ def main(argv=None):
     p.add_argument("--force", action="store_true", help="replace a non-empty --out")
     p.set_defaults(fn=cmd_build)
 
-    p = sub.add_parser("check", help="validate a config")
+    p = sub.add_parser("check", help="validate a config, its demo{} and its plugin paths")
     common(p, client=False)
     p.set_defaults(fn=cmd_check)
 
