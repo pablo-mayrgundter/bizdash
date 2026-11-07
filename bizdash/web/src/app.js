@@ -156,7 +156,7 @@ async function start() {
     const mounted = dash.mount({ notice: $("notice"), actions: $("headerActions") });
     setInterval(() => dash.loadAll(["realtime"]), config.refresh.realtimeSeconds * 1000);
     setInterval(() => dash.loadAll(["range"]), config.refresh.rangeSeconds * 1000);
-    if (failures.length) notice(`Some plugins failed to load: ${failures.join("; ")}`);
+    if (failures.length) dash.showNotice(`Some plugins failed to load: ${failures.join("; ")}.`, "plugins");
     return mounted;
   };
   if (mode !== "direct") return run();

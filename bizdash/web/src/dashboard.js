@@ -124,7 +124,7 @@ export function createDashboard({ config, ga, mode, root, storage = globalThis.l
         errorTracker: vars => format.fillTemplate(config.links.errorTracker, vars),
         fill: (template, vars) => format.fillTemplate(template, vars),
       }),
-      ui: Object.freeze({ ...charts, el: format.el, svgEl: format.svgEl, notice: showNotice, gapList }),
+      ui: Object.freeze({ ...charts, el: format.el, svgEl: format.svgEl, notice: msg => showNotice(msg, def.id), gapList }),
       storage: scopedStorage(def.id),
       card: frame.api,
       dashboard: Object.freeze({
@@ -301,6 +301,8 @@ export function createDashboard({ config, ga, mode, root, storage = globalThis.l
   function setState(patch) {
     const before = { ...state };
     Object.assign(state, patch);
+    // A bucket the range cannot fill twice over falls back to hours.
+    if (state.bucket !== "hour" && !time.bucketFits(state.bucket, state.minutes)) state.bucket = "hour";
     if (patch.segment && segmentsEnabled) { try { storage?.setItem("bizdash.segment", state.segment); } catch (e) { /* blocked */ } }
     emit("state", { ...state }, before);
     if (patch.minutes != null && patch.minutes !== before.minutes) {
@@ -324,11 +326,18 @@ export function createDashboard({ config, ga, mode, root, storage = globalThis.l
     return lines.join("\n");
   }
 
+  // One notice line, shared: each source (a card, the plugin loader) owns its
+  // own message, so one clearing its message cannot erase another's.
   let noticeEl = null;
-  function showNotice(msg) {
+  const notices = new Map();
+  function showNotice(msg, key = "page") {
+    if (msg) notices.set(key, msg); else notices.delete(key);
+    renderNotices();
+  }
+  function renderNotices() {
     if (!noticeEl) return;
-    noticeEl.textContent = msg || "";
-    noticeEl.classList.toggle("show", !!msg);
+    noticeEl.textContent = [...notices.values()].join(" ");
+    noticeEl.classList.toggle("show", notices.size > 0);
   }
 
   let actionsEl = null;
@@ -349,6 +358,7 @@ export function createDashboard({ config, ga, mode, root, storage = globalThis.l
   function mount({ notice, actions } = {}) {
     noticeEl = notice || null;
     actionsEl = actions || null;
+    renderNotices();
     mounted = true;
     layout();
     renderHeaderActions();

@@ -121,13 +121,13 @@ export function registerCoreCards(dash) {
         const group = el("div", "bucket");
         group.setAttribute("role", "group"); group.setAttribute("aria-label", "Sum over"); group.id = "bucketToggle";
         group.appendChild(el("span", "label", "Sum over"));
+        if (bucket !== "hour" && !bucketFits(bucket, ctx.range.minutes)) bucket = "hour";
         for (const b of ["hour", "day", "week"]) {
           const btn = el("button", "", b);
           btn.type = "button"; btn.dataset.bucket = b;
           const fits = b === "hour" || bucketFits(b, ctx.range.minutes);
           btn.disabled = !fits;
           btn.title = fits ? "" : `The ${ctx.range.label} is under two ${b}s long`;
-          if (!fits && bucket === b) bucket = "hour";
           btn.setAttribute("aria-pressed", String(b === bucket));
           btn.addEventListener("click", () => { if (!btn.disabled && b !== ctx.state.bucket) ctx.dashboard.setState({ bucket: b }); });
           group.appendChild(btn);

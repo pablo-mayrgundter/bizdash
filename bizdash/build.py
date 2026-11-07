@@ -16,7 +16,7 @@ from .config import ConfigError, resolve
 CORE = ("index.html", "styles.css", "src")
 
 
-def build_site(out_dir, site_dir=None, force=False):
+def build_site(out_dir, site_dir=None, force=False, check=True):
     out = Path(out_dir)
     if out.exists():
         if not force and any(out.iterdir()):
@@ -36,6 +36,10 @@ def build_site(out_dir, site_dir=None, force=False):
                 warnings.append(f"{rel} replaces a core file: pin the bizdash version this was written against")
             (out / rel).parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(src, out / rel)
+    (out / "version.json").write_text(json.dumps({"bizdash": __version__}) + "\n")
+    (out / ".nojekyll").write_text("")
+    if not check:
+        return warnings
     cfg_path = out / "bizdash.config.json"
     try:
         raw = json.loads(cfg_path.read_text())
@@ -48,6 +52,4 @@ def build_site(out_dir, site_dir=None, force=False):
             errors.append(f"plugin {p} is not in the site")
     if errors:
         raise ConfigError("; ".join(errors))
-    (out / "version.json").write_text(json.dumps({"bizdash": __version__}) + "\n")
-    (out / ".nojekyll").write_text("")
     return warnings
