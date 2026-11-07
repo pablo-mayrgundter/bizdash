@@ -159,9 +159,38 @@ def ga_match(expr, get):
             return re.search(want, value) is not None
         return {"EXACT": value == want, "BEGINS_WITH": value.startswith(want),
                 "ENDS_WITH": value.endswith(want), "CONTAINS": want in value}[mt]
+    if "numericFilter" in f:
+        nf = f["numericFilter"]
+        v = nf.get("value") or {}
+        n, want = _js_number(value), _js_number(v["int64Value"] if v.get("int64Value") is not None else v.get("doubleValue"))
+        return {"EQUAL": n == want, "LESS_THAN": n < want, "LESS_THAN_OR_EQUAL": n <= want,
+                "GREATER_THAN": n > want, "GREATER_THAN_OR_EQUAL": n >= want}.get(nf.get("operation"), False)
     if "emptyFilter" in f:
         return value == ""
     raise GAError(400, f"unsupported filter {json.dumps(f)}")
+
+
+_JS_DECIMAL = re.compile(r"[+-]?(\d+\.?\d*|\.\d+)([eE][+-]?\d+)?")
+
+
+def _js_number(v):
+    """JavaScript's unary + on a filter operand: "" is 0, junk is NaN."""
+    if v is None:
+        return math.nan
+    if isinstance(v, bool):
+        return float(v)
+    if isinstance(v, (int, float)):
+        return float(v)
+    s = str(v).strip()
+    if not s:
+        return 0.0
+    if _JS_DECIMAL.fullmatch(s):
+        return float(s)
+    if s in ("Infinity", "+Infinity", "-Infinity"):
+        return float(s.replace("Infinity", "inf"))
+    if re.fullmatch(r"0[xX][0-9a-fA-F]+", s):
+        return float(int(s, 16))
+    return math.nan
 
 
 def filter_fields(expr, out=None):

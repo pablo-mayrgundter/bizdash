@@ -29,6 +29,21 @@ BODIES = [
                    "metrics": [{"name": "eventCount"}], "dimensionFilter": {"filter": {"fieldName": "eventName",
                    "inListFilter": {"values": ["sign_up", "purchase"]}}},
                    "orderBys": [{"dimension": {"dimensionName": "dateHour"}, "desc": True}], "limit": 200}),
+    # numericFilter: every operation, int64Value as a string or a number, doubleValue, and an unknown operation
+    *[("runReport", {"dateRanges": [{"startDate": "2daysAgo", "endDate": "today"}], "dimensions": [{"name": "dateHour"}],
+                     "metrics": [{"name": "sessions"}], "dimensionFilter": {"filter": {"fieldName": "dateHour",
+                     "numericFilter": {"operation": op, "value": value}}}, "limit": 1000})
+      for op, value in [("EQUAL", {"int64Value": "2026110312"}), ("LESS_THAN", {"int64Value": 2026110300}),
+                        ("LESS_THAN_OR_EQUAL", {"doubleValue": 2026110300.0}), ("GREATER_THAN", {"int64Value": "2026110410"}),
+                        ("GREATER_THAN_OR_EQUAL", {"doubleValue": 2026110410.5}), ("BETWEEN", {"int64Value": "1"})]],
+    ("runReport", {"dateRanges": [{"startDate": "6daysAgo", "endDate": "today"}], "dimensions": [{"name": "country"}],
+                   "metrics": [{"name": "activeUsers"}], "dimensionFilter": {"notExpression": {"filter": {
+                   "fieldName": "customEvent:item_kind", "numericFilter": {"operation": "GREATER_THAN",
+                   "value": {"int64Value": "0"}}}}}, "limit": 50}),
+    # a ranked report under comparisons: the limit counts every segment's rows together, in both
+    ("runReport", {"dateRanges": [{"startDate": "29daysAgo", "endDate": "today"}], "dimensions": [{"name": "country"}],
+                   "metrics": [{"name": "activeUsers"}], "comparisons": "COMPARISONS",
+                   "orderBys": [{"metric": {"metricName": "activeUsers"}, "desc": True}], "limit": 7}),
     ("runRealtimeReport", {"dimensions": [{"name": "minutesAgo"}], "metrics": [{"name": "activeUsers"}]}),
     ("runRealtimeReport", {"dimensions": [{"name": "country"}], "metrics": [{"name": "activeUsers"}, {"name": "eventCount"}]}),
 ]
