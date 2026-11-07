@@ -21,6 +21,14 @@ function sizeOf(def) {
   return def.span <= 4 ? "third" : def.span <= 8 ? "wide" : "full";
 }
 
+/**
+ * Where a card's storage lives: per mode, and per property outside the demo,
+ * so synthetic data never lands under a real property's key (a demo page can
+ * carry a configured property id).
+ */
+export const storageScope = (mode, propertyId) =>
+  (mode === "demo" || !propertyId ? String(mode) : `${mode}:${propertyId}`);
+
 export function createDashboard({ config, ga, mode, root, storage = globalThis.localStorage, params = new URLSearchParams() }) {
   const cards = new Map();           // id -> {def, frame, data, error, gen, index}
   const listeners = new Map();
@@ -79,7 +87,7 @@ export function createDashboard({ config, ga, mode, root, storage = globalThis.l
   const internalIds = config.internalUsers?.ids || {};
 
   function scopedStorage(id) {
-    const prefix = `bizdash.card.${id}.${config.propertyId || mode}.`;
+    const prefix = `bizdash.card.${id}.${storageScope(mode, config.propertyId)}.`;
     return {
       get(k) { try { return JSON.parse(storage.getItem(prefix + k)); } catch (e) { return null; } },
       set(k, v) { try { storage.setItem(prefix + k, JSON.stringify(v)); } catch (e) { /* blocked or full */ } },

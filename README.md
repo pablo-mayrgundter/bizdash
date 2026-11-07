@@ -170,7 +170,7 @@ and the notice names it.
 | `rows`, `time`, `format`, `rules` | payload readers, window arithmetic, number formatting, the rule compiler |
 | `links` | `ga()`, `errorTracker(vars)`, `fill(template, vars)` |
 | `ui` | `el`, `svgEl`, `hbarRow`, `hbarPairRow`, `sparkline`, `dataTable`, `columnChart`, `mainChart`, `gapList`, `notice(msg)` |
-| `storage` | localStorage scoped to the card and property: `get`, `set`, `remove`, `clear` |
+| `storage` | localStorage scoped to the card, the mode and (outside the demo) the property, so demo data never shares a real property's keys: `get`, `set`, `remove`, `clear` |
 | `card` | the frame: `el`, `body`, `tools`, `tip`, `setTitle`, `setSubtitle`, `setFilter(data)`, `setFoot(text)` |
 | `dashboard` | `footnote(cardId, key, text)` (a provenance line under any card), `refresh(id)`, `data(id)`, `setState`, `snapshot()`, `on`, `emit` |
 

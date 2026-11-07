@@ -51,3 +51,12 @@ test("?config= accepts only same-site .json paths", () => {
   for (const bad of ["https://x/c.json", "//x/c.json", "../c.json", "/c.json", "c.js", "javascript:alert(1).json"])
     assert.equal(C.isSafeConfigPath(bad), false, bad);
 });
+
+test("card storage is scoped by mode, so demo data never lands under a real property", async () => {
+  const { storageScope } = await import(src("dashboard.js"));
+  assert.equal(storageScope("demo", "123456"), "demo");          // a demo page may carry a configured property
+  assert.equal(storageScope("direct", "123456"), "direct:123456");
+  assert.equal(storageScope("server", "123456"), "server:123456");
+  assert.equal(storageScope("server", ""), "server");
+  assert.notEqual(storageScope("direct", "123456"), storageScope("server", "123456"));
+});

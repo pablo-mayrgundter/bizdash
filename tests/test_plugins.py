@@ -72,6 +72,14 @@ def test_a_plugin_card_gets_the_shared_window_and_the_ga_client(open_page, site_
     assert page.text_content("#card-probe .probe").endswith(" all")
 
 
+def test_demo_storage_never_lands_under_a_configured_property(open_page, site_server):
+    url = site_server({"cards/probe.js": PLUGIN}, config(plugins=["cards/probe.js"], propertyId="123456789"))
+    page = open_page(f"{url}/index.html?demo=1")
+    keys = page.evaluate("Object.keys(localStorage).filter(k => k.startsWith('bizdash.card.'))")
+    assert keys == ["bizdash.card.probe.demo.seen"]
+    assert not any("123456789" in k for k in keys)
+
+
 def test_failures_are_isolated_to_their_card(open_page, site_server):
     url = site_server({"cards/broken.js": BROKEN, "cards/syntax.js": "export default function ( {"},
                       config(plugins=["cards/broken.js", "cards/syntax.js", "cards/absent.js"]), check=False)
