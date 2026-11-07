@@ -1,0 +1,28 @@
+{
+  "title": "Example.org traffic",
+  "propertyId": "",
+  "clientId": "",
+  "timezoneNote": "Hours are in the property's timezone.",
+  "events": {
+    "sign_up": { "label": "Sign-ups" },
+    "item_open": { "label": "Item opens" }
+  },
+  "chart": { "secondary": "item_open" },
+  "tiles": [{ "event": "sign_up" }],
+  "funnel": {
+    "steps": [
+      { "key": "opened", "label": "Opened an item", "short": "Opened", "events": ["item_open"] },
+      { "key": "signup", "label": "Signed up", "short": "Signed up", "events": ["sign_up"] }
+    ]
+  },
+  "conversions": { "events": ["sign_up"] },
+  "traffic": { "siteHosts": ["www.example.org", "example.org"] },
+  "plugins": ["cards/signups-by-landing.js"],
+  "demo": {
+    "siteHost": "www.example.org",
+    "events": [
+      { "name": "item_open", "rate": 0.3, "repeat": 3 },
+      { "name": "sign_up", "rate": 0.08, "requires": "item_open" }
+    ]
+  }
+}

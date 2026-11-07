@@ -113,3 +113,19 @@ def test_an_invalid_config_says_why(open_page, site_server):
     url = site_server({}, {"ranges": []}, check=False)
     page = open_page(f"{url}/index.html?demo=1", wait=False)
     page.wait_for_function("document.getElementById('notice').textContent.includes('ranges must be')")
+
+
+def test_the_minimal_example_deployment(open_page, tmp_path):
+    from bizdash.build import build_site
+    from conftest import ROOT, StaticServer
+    out = tmp_path / "site"
+    assert build_site(out, ROOT / "examples" / "minimal" / "site") == []
+    srv = StaticServer(out)
+    try:
+        page = open_page(f"{srv.url}/index.html?demo=1")
+        order = page.evaluate("bizdash.dash.ordered()")
+        assert order[order.index("funnel") + 1] == "signups-by-landing"
+        assert page.locator("#card-signups-by-landing .hbar-row").count() > 0
+        assert page.text_content("#title") == "Example.org traffic"
+    finally:
+        srv.stop()
