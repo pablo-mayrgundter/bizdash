@@ -1,0 +1,63 @@
+# Tag a release. Run it from the Actions tab (or the API) with the tag to
+# create, e.g. v0.1.0, and the ref to tag (main by default). It also creates
+# the GitHub release, its notes taken from CHANGELOG.md's matching section.
+name: release
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag to create, e.g. v0.1.0 or v0.2.0-rc.1"
+        required: true
+      ref:
+        description: "Branch, tag or commit to tag"
+        default: main
+      prerelease:
+        description: "Mark the GitHub release as a pre-release"
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
+          fetch-depth: 0
+      - name: Check the tag is new and matches the package version
+        env:
+          TAG: ${{ inputs.tag }}
+        run: |
+          case "$TAG" in v[0-9]*) ;; *) echo "::error::tag must look like v1.2.3"; exit 1;; esac
+          if git rev-parse -q --verify "refs/tags/$TAG" >/dev/null; then
+            echo "::error::$TAG already exists"; exit 1
+          fi
+          # pyproject's PEP 440 version (0.1.0rc1) for the tag's semver (v0.1.0-rc.1)
+          want=$(echo "${TAG#v}" | sed -E 's/-rc\.?([0-9]+)$/rc\1/; s/-beta\.?([0-9]+)$/b\1/; s/-alpha\.?([0-9]+)$/a\1/')
+          have=$(sed -n -E 's/^version = "([^"]+)"/\1/p' pyproject.toml)
+          if [ "$want" != "$have" ]; then
+            echo "::error::pyproject.toml says $have, the tag implies $want"; exit 1
+          fi
+      - name: Notes from CHANGELOG.md
+        env:
+          TAG: ${{ inputs.tag }}
+        run: |
+          awk -v v="${TAG#v}" '
+            /^## / { if (on) exit; if (index($0, v)) { on = 1; next } }
+            on { print }
+          ' CHANGELOG.md > notes.md
+          [ -s notes.md ] || echo "Release $TAG." > notes.md
+      - name: Tag and release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.tag }}
+          PRE: ${{ inputs.prerelease }}
+        run: |
+          git tag -a "$TAG" -m "bizdash $TAG"
+          git push origin "refs/tags/$TAG"
+          flag=""; [ "$PRE" = "true" ] && flag="--prerelease"
+          gh release create "$TAG" --title "bizdash $TAG" --notes-file notes.md $flag
