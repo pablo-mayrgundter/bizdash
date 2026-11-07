@@ -1,0 +1,21 @@
+# bizdash's own demo on GitHub Pages, from main, through the same reusable
+# workflow deployments use. Open it with ?demo=1.
+# One-time setup: Settings -> Pages -> Source: "Deploy from a branch", gh-pages / root.
+name: Demo on Pages
+on:
+  push:
+    branches: [main]
+    paths: ["bizdash/web/**", ".github/workflows/pages.yml", ".github/workflows/deploy.yml"]
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: pages-deploy
+  cancel-in-progress: false
+jobs:
+  demo:
+    uses: ./.github/workflows/deploy.yml
+    with:
+      version: main
+      pip-spec: "."
+      site-dir: ""

@@ -1,0 +1,21 @@
+# A preview of each pull request that touches the dashboard, at
+# <pages-url>/pr-preview/pr-<n>/?demo=1, through the reusable workflow.
+name: Demo preview
+on:
+  pull_request:
+    types: [opened, reopened, synchronize, closed]
+    paths: ["bizdash/web/**"]
+permissions:
+  contents: write
+  pull-requests: write
+concurrency:
+  group: pr-preview-${{ github.event.number }}
+  cancel-in-progress: true
+jobs:
+  preview:
+    uses: ./.github/workflows/deploy.yml
+    with:
+      version: main
+      pip-spec: "."
+      site-dir: ""
+      preview: true

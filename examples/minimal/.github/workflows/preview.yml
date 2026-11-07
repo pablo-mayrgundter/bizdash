@@ -1,0 +1,20 @@
+# A preview of each pull request at <pages-url>/pr-preview/pr-<n>/, with a
+# sticky comment linking it; removed when the PR closes. Append ?demo=1 to
+# review with synthetic data, no sign-in needed.
+name: Dashboard preview
+on:
+  pull_request:
+    types: [opened, reopened, synchronize, closed]
+permissions:
+  contents: write
+  pull-requests: write
+concurrency:
+  group: pr-preview-${{ github.event.number }}
+  cancel-in-progress: true
+jobs:
+  preview:
+    uses: pablo-mayrgundter/bizdash/.github/workflows/deploy.yml@v0.1.0
+    with:
+      version: v0.1.0
+      site-dir: site
+      preview: true

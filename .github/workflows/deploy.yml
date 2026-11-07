@@ -1,0 +1,70 @@
+# Reusable: build a deployment's dashboard and publish it to GitHub Pages.
+#
+# A deployment repository calls it with its own site directory (its
+# bizdash.config.json, plugin cards and assets) and a pinned bizdash release:
+#
+#   jobs:
+#     deploy:
+#       uses: pablo-mayrgundter/bizdash/.github/workflows/deploy.yml@v0.1.0
+#       with: { version: v0.1.0, site-dir: site }
+#
+# The caller grants `contents: write` (and `pull-requests: write` with
+# preview: true). The site is published to the gh-pages branch; previews go
+# under pr-preview/ on the same branch, which the main deploy leaves alone.
+name: Deploy bizdash
+on:
+  workflow_call:
+    inputs:
+      version:
+        description: "bizdash release tag or full commit SHA to build with, e.g. v0.1.0 (keep it equal to the workflow's @ref)"
+        type: string
+        required: true
+      site-dir:
+        description: "The deployment's site directory, laid over the dashboard. Empty: the packaged demo site."
+        type: string
+        default: site
+      pip-spec:
+        description: "Override what is installed (bizdash's own repository passes '.')"
+        type: string
+        default: ""
+      preview:
+        description: "Deploy a pull-request preview under pr-preview/ instead of the site root"
+        type: boolean
+        default: false
+      python-version:
+        type: string
+        default: "3.12"
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ inputs.python-version }}
+      - name: Install bizdash
+        env:
+          SPEC: ${{ inputs.pip-spec }}
+          VERSION: ${{ inputs.version }}
+        run: pip install "${SPEC:-git+https://github.com/pablo-mayrgundter/bizdash@${VERSION}}"
+      - name: Build the site
+        if: ${{ !inputs.preview || github.event.action != 'closed' }}
+        env:
+          SITE: ${{ inputs.site-dir }}
+        run: python -m bizdash build ${SITE:+--site "$SITE"} --out _site
+      - name: Publish
+        if: ${{ !inputs.preview }}
+        uses: JamesIves/github-pages-deploy-action@v4
+        with:
+          folder: _site
+          branch: gh-pages
+          clean-exclude: pr-preview/
+          force: false
+      - name: Publish the preview
+        if: ${{ inputs.preview }}
+        uses: rossjrw/pr-preview-action@v1
+        with:
+          source-dir: _site
+          preview-branch: gh-pages
+          umbrella-dir: pr-preview
+          action: auto
