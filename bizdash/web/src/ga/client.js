@@ -117,6 +117,11 @@ export function createGA({ transport, mode, maxConcurrent = 5, reportTtlMs = 300
 
 // ---- transports -------------------------------------------------------------
 
+/** Whether a response is GA refusing a token for lacking the Analytics scope. */
+export function isScopeRefusal(r) {
+  return r.status === 403 && /ACCESS_TOKEN_SCOPE_INSUFFICIENT|insufficient authentication scopes/i.test(r.text || "");
+}
+
 /** Browser-direct: the viewer's own Google token, straight to the Data API. */
 export function directTransport({ tokens, propertyId, fetchFn = (...a) => globalThis.fetch(...a), onSessionExpired = () => {} }) {
   async function once(method, body) {
@@ -136,6 +141,14 @@ export function directTransport({ tokens, propertyId, fetchFn = (...a) => global
   return {
     async post(method, body) {
       const r = await once(method, body);
+      // A token without the Analytics scope (the viewer unticked it on the
+      // consent screen) gets a 403 on every report: no retry will help, so
+      // refuse the token and ask the viewer to sign in again.
+      if (isScopeRefusal(r)) {
+        tokens.refuseScopes?.(tokens.token);
+        onSessionExpired({ missingScope: true });
+        return r;
+      }
       if (r.status !== 401) return r;
       const again = await once(method, body);
       // twice in a row is a refusal, not staleness: worth interrupting for

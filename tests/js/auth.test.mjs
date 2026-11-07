@@ -195,3 +195,36 @@ test("a persisted token is restored; ?switch_account forgets it", () => {
   assert.equal(harness({ store: saved }).tm.token, "KEPT");
   assert.equal(harness({ store: saved, forceAccountSelect: true }).tm.token, null);
 });
+
+test("a grant without the Analytics scope is refused, not stored, and the next popup asks for consent", async () => {
+  const { tm, gis, store, events } = harness();
+  const p = tm.requestToken({ interactive: true });
+  await tick();
+  gis.clients[0].cfg.callback({ access_token: "NOGA", expires_in: 3600, scope: "openid email https://www.googleapis.com/auth/userinfo.email" });
+  await assert.rejects(p, e => e.missingScope && /Google Analytics access wasn't granted/.test(e.message));
+  assert.equal(tm.token, null);
+  assert.equal(store.get("bizdash.token"), undefined);
+  assert.equal(events.signin, 1);
+  const p2 = tm.requestToken({ interactive: true });
+  await tick();
+  assert.equal(gis.clients[1].asked[0].prompt, "consent");
+  gis.clients[1].cfg.callback({ access_token: "OK", expires_in: 3600,
+    scope: "openid email https://www.googleapis.com/auth/analytics.readonly" });
+  await p2;
+  assert.equal(tm.token, "OK");
+  const p3 = tm.requestToken({ interactive: true });
+  await tick();
+  assert.equal(gis.clients[2].asked[0].prompt, "select_account", "consent is asked for only after a refusal");
+  gis.clients[2].cfg.callback({ access_token: "OK2", expires_in: 3600 });
+  await p3;
+});
+
+test("a GA 403 for scopes (refuseScopes) drops the token and makes the next popup ask for consent", async () => {
+  const { tm, gis, grant } = harness();
+  const p = tm.requestToken(); await tick(); grant(0, "T"); await p;
+  tm.refuseScopes("T");
+  assert.equal(tm.token, null);
+  tm.requestToken().catch(() => {});
+  await tick();
+  assert.equal(gis.clients[1].asked[0].prompt, "consent");
+});

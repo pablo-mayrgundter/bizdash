@@ -21,6 +21,9 @@
 // can drive each ordering by hand with a fake GIS.
 
 export const SCOPE_ANALYTICS = "https://www.googleapis.com/auth/analytics.readonly";
+/** What a viewer sees when they signed in but left the Analytics box unticked. */
+export const MISSING_SCOPE_MESSAGE = "Google Analytics access wasn't granted. Sign in again and, on Google's "
+  + "consent screen, tick \u201cSee and download your Google Analytics data\u201d (or Select all).";
 const KEY_TOKEN = "bizdash.token", KEY_EMAIL = "bizdash.userEmail", KEY_AUTHED = "bizdash.hasAuthed";
 
 export function createTokenManager({
@@ -67,6 +70,18 @@ export function createTokenManager({
       }).catch(e => { s.gisPromise = null; throw e; });
     }
     return s.gisPromise;
+  }
+
+  // Google's consent screen lets a viewer untick individual scopes: sign-in
+  // can succeed with a token that can't read GA. Such a token is refused, and
+  // the next popup asks for consent again so the boxes are shown.
+  const required = scopes.filter(x => x !== "openid" && x !== "email");
+  function grantedAll(t) {
+    const has = win.google?.accounts?.oauth2?.hasGrantedAllScopes;
+    if (typeof has === "function" && t.scope != null) return has(t, ...required);
+    if (typeof t.scope !== "string") return true;   // nothing said: assume what was asked
+    const got = new Set(t.scope.split(/\s+/));
+    return required.every(x => got.has(x));
   }
 
   const live = (lead = leadMs) => !!s.accessToken && Date.now() < s.tokenExpiry - lead;
@@ -134,6 +149,11 @@ export function createTokenManager({
           callback: t => {
             if (s.tokenWriteGen > myGen) return;          // a newer request already wrote
             if (t.error) return fail(new Error(t.error_description || t.error));
+            if (!grantedAll(t)) {
+              s.needsConsent = true;
+              return fail(Object.assign(new Error(MISSING_SCOPE_MESSAGE), { missingScope: true }));
+            }
+            s.needsConsent = false;
             s.accessToken = t.access_token;
             s.tokenExpiry = Date.now() + t.expires_in * 1000;
             s.tokenWriteGen = myGen;
@@ -153,8 +173,9 @@ export function createTokenManager({
         });
         try {
           const hint = chooseAccount ? null : store.get(KEY_EMAIL);
-          client.requestAccessToken(chooseAccount ? { prompt: "select_account" }
-                                                  : { prompt: "", ...(hint ? { hint } : {}) });
+          client.requestAccessToken(s.needsConsent ? { prompt: "consent", ...(hint ? { hint } : {}) }
+            : chooseAccount ? { prompt: "select_account" }
+            : { prompt: "", ...(hint ? { hint } : {}) });
         } catch (e) { fail(e); }
       }
       await grant;
@@ -176,6 +197,12 @@ export function createTokenManager({
       .catch(e => { if (!e.inherited) s.sweeperPaused = true; });
   }
 
+  /** The 403 "insufficient scopes" path: this token can't read GA, so drop it and ask for consent next time. */
+  function refuseScopes(sent) {
+    s.needsConsent = true;
+    dropToken(sent);
+  }
+
   /** The 401 path: drop the token we sent, unless a sibling has already replaced it. */
   function dropToken(sent) {
     if (s.accessToken === sent) { s.accessToken = null; store.del(KEY_TOKEN); }
@@ -188,7 +215,7 @@ export function createTokenManager({
   }
 
   return {
-    state: s, loadGIS, ensureToken, requestToken, followToken, sweep, dropToken, reset, live,
+    state: s, loadGIS, ensureToken, requestToken, followToken, sweep, dropToken, refuseScopes, reset, live,
     get token() { return s.accessToken; },
     hasAuthed: () => store.get(KEY_AUTHED) === "1",
     userEmail: () => store.get(KEY_EMAIL),
