@@ -1,0 +1,10 @@
+__pycache__/
+*.egg-info/
+build/
+dist/
+_site/
+.pytest_cache/
+*.duckdb
+*.duckdb.wal
+service-account*.json
+.venv/
