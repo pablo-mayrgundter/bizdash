@@ -10,7 +10,7 @@ import * as time from "./time.js";
 import * as charts from "./ui/charts.js";
 import * as reports from "./core/reports.js";
 
-export const VERSION = "0.1.0-rc.1";
+export const VERSION = "0.1.0";
 const { el } = format;
 const CARD_ID = /^[a-z0-9][a-z0-9:_.-]*$/i;
 const REFRESH = new Set(["range", "realtime", "once"]);

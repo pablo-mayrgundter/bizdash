@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "bizdash"
-version = "0.1.0rc1"
+version = "0.1.0"
 description = "A reusable Google Analytics 4 bizdev dashboard: static SPA, caching proxy, snapshots."
 readme = "README.md"
 license = { text = "MIT" }

@@ -72,3 +72,17 @@ def test_packaged_web_is_complete():
     for rel in ("index.html", "styles.css", "api/meta", "bizdash.config.json", "src/app.js", "src/defaults.json"):
         assert (WEB_DIR / rel).is_file(), rel
     assert json.loads((WEB_DIR / "api" / "meta").read_text()) == {"static": True}
+
+
+def test_the_three_version_strings_agree():
+    """pyproject (PEP 440), the package and the page (semver) name one release,
+    mapped as release.yml maps a tag to pyproject's version."""
+    import re
+
+    from bizdash import __version__
+    pyproject = re.search(r'^version = "([^"]+)"', (WEB_DIR.parent.parent / "pyproject.toml").read_text(), re.M)[1]
+    page = re.search(r'export const VERSION = "([^"]+)"', (WEB_DIR / "src" / "dashboard.js").read_text())[1]
+    as_pep440 = re.sub(r"-alpha\.?(\d+)$", r"a\1", re.sub(r"-beta\.?(\d+)$", r"b\1", re.sub(r"-rc\.?(\d+)$", r"rc\1", page)))
+    assert pyproject == __version__ == as_pep440
+    changelog = (WEB_DIR.parent.parent / "CHANGELOG.md").read_text()
+    assert f"\n## {page}\n" in changelog

@@ -8,5 +8,5 @@ plugin cards, snapshots data to DuckDB, and calibrates the traffic rule.
 
 from pathlib import Path
 
-__version__ = "0.1.0rc1"
+__version__ = "0.1.0"
 WEB_DIR = Path(__file__).resolve().parent / "web"

@@ -4,6 +4,30 @@ All notable changes to bizdash. Versions follow semantic versioning; release
 candidates are tagged before each release so deployments can build against
 them first.
 
+## 0.1.0
+
+The first release. Fixes found building deployments on 0.1.0-rc.1:
+
+- **Row limits under comparisons.** GA's `limit` counts every segment's
+  rows together, so breakdowns asking for 10 rows gave each segment three or
+  four. Ranked reports now ask for limit × comparisons, and a segment that
+  larger ones still crowd out of the shared ranking is asked for again alone,
+  so each gets its full top N. Whole-report limits (funnel, new vs returning,
+  spike drill-down, `bizdash bots`) scale the same way. Plugins get the same
+  through `ctx.segments.ranked(body)`, which `examples/minimal`'s card uses.
+- **`ctx.storage`** is scoped by mode as well as property, so a demo page
+  with a configured property no longer stores synthetic data under the real
+  property's key. Keys in the old scheme are no longer read.
+- **The Python demo's `numericFilter`**, as the JS demo has it, so a numeric
+  filter no longer returns a 400 under `bizdash serve --demo`.
+- **`bizdash check`** validates `demo{}` (`requires` naming an event listed
+  before it, rates in [0, 1], string parameter values) and that each plugin
+  path exists in the site directory; `build` checks `demo{}` too. Numeric
+  demo parameter values are coerced to strings rather than crashing the
+  Python demo.
+- **README:** pinning a deployment by commit SHA (`uses: …@<sha>` with
+  `version: <sha>`, kept equal), for release candidates before their tag.
+
 ## 0.1.0-rc.1
 
 First release candidate.
