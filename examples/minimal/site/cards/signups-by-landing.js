@@ -19,12 +19,14 @@ export default function (bizdash) {
         metrics: [{ name: "totalUsers" }],
         dimensionFilter: ctx.filters.and(ctx.filters.events(["sign_up"]), ctx.internal.exclusion()),
         orderBys: [{ metric: { metricName: "totalUsers" }, desc: true }],
-        limit: 10,
+        limit: 10,                // rows per segment
       };
       // With a traffic rule configured, ask for the three segments in the same
       // request and keep one view per segment; switching then costs no request.
+      // GA's limit counts all three segments' rows together, so ranked() asks
+      // for room for each (and re-asks a segment that larger ones crowd out).
       if (!ctx.comparisons) return { rows: ctx.rows.gaRows(await ctx.ga.runReport(body), ["landingPage"], ["totalUsers"]) };
-      const p = await ctx.ga.runReport({ ...body, comparisons: ctx.comparisons });
+      const p = await ctx.segments.ranked(body);
       const bySeg = ctx.rows.gaRowsByComparison(p, ["landingPage"], ["totalUsers"]);
       return { segments: Object.fromEntries(Object.entries(bySeg).map(([seg, rows]) => [seg, { rows }])) };
     },

@@ -106,3 +106,77 @@ test("without a traffic rule, nothing is segmented and nothing complains", async
   assert.equal(ts.segments, null);
   assert.equal(ts.segmentsError, null);
 });
+
+// ---- row limits under comparisons -----------------------------------------------
+
+const { trafficComparisons } = await import(src("rules.js"));
+const { and } = await import(src("ga/rows.js"));
+const recordingGA = c => {
+  const api = createDemoApi(c, { now: NOW }), bodies = [];
+  const ga = createGA({ transport: { post: (m, b) => { bodies.push(b); return api.post(m, b); } }, mode: "demo" });
+  return { ga, api, bodies };
+};
+/** A segment's own top-n, asked for alone with its comparison's filter. */
+const alone = (api, body, c, n, dim, metric) => (api.runReport({ ...body, limit: n,
+  dimensionFilter: and(body.dimensionFilter, c.dimensionFilter) }).rows || [])
+  .map(r => ({ name: r.dimensionValues[0].value, value: +r.metricValues[0].value }))
+  .map(r => ({ [dim]: r.name, [metric]: r.value }));
+
+test("breakdowns: each segment gets its own top 10, not a share of one limit", async () => {
+  const { ga, api, bodies } = recordingGA(cfg);
+  const bd = await R.breakdowns(ga, cfg, 30 * 1440);
+  const cmp = R.comparisonsFor(cfg);
+  const asked = bodies.find(b => b.comparisons && b.dimensions?.[0].name === "country");
+  assert.equal(asked.limit, R.BREAKDOWN_ROWS * cmp.length);
+  // the demo has ten countries under All: a shared limit of 10 gave All five
+  assert.equal(bd.segments.all.items.countries.rows.length, R.BREAKDOWN_ROWS);
+  for (const b of cfg.breakdowns) {
+    const body = { dateRanges: [{ startDate: "29daysAgo", endDate: "today" }], dimensions: [{ name: b.dimension }],
+                   metrics: [{ name: "activeUsers" }], orderBys: [{ metric: { metricName: "activeUsers" }, desc: true }] };
+    for (const c of cmp) {
+      const want = alone(api, body, c, R.BREAKDOWN_ROWS, "name", "users");
+      assert.deepEqual(bd.segments[c.name].items[b.key].rows.map(r => ({ name: r.name, users: r.users })), want,
+                       `${b.key} / ${c.name}`);
+    }
+  }
+});
+
+test("rankedParts: N rows in every segment, re-asking one the others crowd out", async () => {
+  // a rule that puts about half the traffic in each segment, so every one has many sources
+  const c = resolved(merge(demoConfigRaw(), { traffic: { siteHosts: null, rule: { any: [{ dim: "deviceCategory", in: ["mobile"] }] } } }));
+  const cmp = R.comparisonsFor(c);
+  const body = { dateRanges: [{ startDate: "6daysAgo", endDate: "today" }], dimensions: [{ name: "sessionSource" }],
+                 metrics: [{ name: "activeUsers" }], orderBys: [{ metric: { metricName: "activeUsers" }, desc: true }], limit: 3 };
+  const { ga, api } = recordingGA(c);
+  const R0 = api.runReport({ ...body, comparisons: cmp });             // the shared limit alone: 3 rows for 3 segments
+  assert.equal(R0.rows.length, 3);
+  const { s } = await R.rankedParts(ga, { s: body }, cmp);
+  const { gaRowsByComparison } = await import(src("ga/rows.js"));
+  const by = gaRowsByComparison(s, ["sessionSource"], ["activeUsers"]);
+  for (const k of cmp) {
+    assert.equal(by[k.name].length, 3, k.name);
+    assert.deepEqual(by[k.name], alone(api, body, k, 3, "sessionSource", "activeUsers"), k.name);
+  }
+  // the demo config's Non-standard has one source: ranked below All and Standard, it still comes back
+  const { ga: ga2, api: api2 } = recordingGA(cfg);
+  const cmp2 = R.comparisonsFor(cfg);
+  const { t } = await R.rankedParts(ga2, { t: { ...body, limit: 2 } }, cmp2);
+  const by2 = gaRowsByComparison(t, ["sessionSource"], ["activeUsers"]);
+  for (const k of cmp2) assert.deepEqual(by2[k.name], alone(api2, body, k, 2, "sessionSource", "activeUsers"), k.name);
+  assert.equal(by2.nonstandard.length, 1);
+  // with no comparisons it is a plain report
+  const { p } = await R.rankedParts(gaFor(), { p: body }, null);
+  assert.equal(p.rows.length, 3);
+  assert.ok(!p.dimensionHeaders.some(h => h.name === "comparison"));
+});
+
+test("limits that cover a whole report scale with the comparisons too", async () => {
+  const { ga, bodies } = recordingGA(cfg);
+  await R.funnel(ga, cfg, 1440);
+  const n = R.comparisonsFor(cfg).length;
+  assert.ok(bodies.filter(b => b.comparisons).every(b => b.limit === 100 * n));
+  bodies.length = 0;
+  const ts = await R.timeseries(ga, cfg, 1440);
+  await R.windowTotals(ga, ts.window, R.comparisonsFor(cfg));
+  assert.ok(bodies.some(b => b.comparisons && b.dimensions?.[0]?.name === "newVsReturning" && b.limit === 10 * n));
+});

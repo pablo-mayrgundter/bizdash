@@ -107,6 +107,7 @@ export function createDashboard({ config, ga, mode, root, storage = globalThis.l
       segments: Object.freeze({
         enabled: segmentsEnabled, current: state.segment, label: segLabel, rule: config.traffic?.rule || null,
         view: data => reports.segmentView(data, state.segment),
+        ranked: body => reports.rankedReport(ga, body, reports.comparisonsFor(config)),
         applied: data => reports.appliedSegment(data, state.segment),
         isNonstandard: row => (config.traffic ? rules.isNonstandard(row, config.traffic.rule) : null),
         classifyHosts: hosts => (config.traffic ? rules.classifyHosts(hosts, config.traffic.rule) : null),

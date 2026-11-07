@@ -31,6 +31,7 @@ def requests_for(cfg, days=90):
     rule = filter_expression(t["rule"])
     cmp = comparisons(t["rule"])
     rng = [{"startDate": f"{days - 1}daysAgo", "endDate": "today"}]
+    # under comparisons GA's limit counts every segment's rows together
 
     def dims(*n):
         return [{"name": x} for x in n]
@@ -42,11 +43,11 @@ def requests_for(cfg, days=90):
         leak = sorted({e for s in cfg["funnel"]["steps"] for e in s["events"]})
     reqs = {
         "share_date": {"dateRanges": rng, "dimensions": dims("date"), "metrics": mets(*ENGAGEMENT),
-                       "comparisons": cmp, "metricAggregations": ["TOTAL"], "limit": 10000},
+                       "comparisons": cmp, "metricAggregations": ["TOTAL"], "limit": 10000 * len(cmp)},
         "share_window": {"dateRanges": rng, "metrics": mets(*ENGAGEMENT), "comparisons": cmp,
                          "metricAggregations": ["TOTAL"]},
         "share_channel": {"dateRanges": rng, "dimensions": dims(CHANNEL), "metrics": mets("totalUsers"),
-                          "comparisons": cmp, "metricAggregations": ["TOTAL"], "limit": 100},
+                          "comparisons": cmp, "metricAggregations": ["TOTAL"], "limit": 100 * len(cmp)},
         "misses_country_city": {"dateRanges": rng, "dimensions": dims("country", "city"), "metrics": mets(*ENGAGEMENT),
                                 "dimensionFilter": {"andGroup": {"expressions": [
                                     {"notExpression": rule}, _in(CHANNEL, ["Direct", "Unassigned"])]}},

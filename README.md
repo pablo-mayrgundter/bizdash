@@ -165,7 +165,7 @@ and the notice names it.
 | `ga` | `runReport(body)`, `runRealtimeReport(body)`, `batchRunReports(requests)`, `parts({key: body})` (each its own failure), `rows(body)`, `quota`, `stats`. Shared cache, in-flight sharing, concurrency cap and the concurrency-429 retry, whatever the transport |
 | `core` | the core cards' data, shared and memoized per range: `timeseries()`, `window()` (the anchored `{start, end}`), `breakdowns()`, `funnel()`, `conversions()`, `tiles()`, `realtime()`, `spike(start, end)`, `latest` |
 | `comparisons` | the three segment comparisons to attach to a request, or null |
-| `segments` | `{enabled, current, label(seg), view(data), applied(data), isNonstandard(row), classifyHosts(hosts)}` |
+| `segments` | `{enabled, current, label(seg), view(data), applied(data), ranked(body), isNonstandard(row), classifyHosts(hosts)}`. `ranked(body)` runs a top-N report under the comparisons with `body.limit` rows in every segment (GA's own `limit` counts all three segments' rows together); plain without a traffic rule |
 | `filters`, `internal` | FilterExpression builders (`and`, `or`, `not`, `inList`, `equals`, `events`) and the internal-user exclusion |
 | `rows`, `time`, `format`, `rules` | payload readers, window arithmetic, number formatting, the rule compiler |
 | `links` | `ga()`, `errorTracker(vars)`, `fill(template, vars)` |

@@ -4,8 +4,8 @@
 // functions keep; the comments here say where each one applies.
 
 import {
-  SEGMENTS, aggregateTotal, and, comparisonTotals, events, gaRows, gaRowsByComparison, gaTotalsRow, inList, not,
-  splitByComparison, withFilter,
+  SEGMENTS, aggregateTotal, and, comparedLimit, comparisonTotals, events, gaRows, gaRowsByComparison, gaTotalsRow,
+  inList, not, capSegments, isCompared, shortSegments, splitByComparison, withFilter, withSegmentRows,
 } from "../ga/rows.js";
 import { classifyHosts, realtimeRule, trafficComparisons, trafficFilterExpression } from "../rules.js";
 import { findEpisodes, robustScores, spikeMovers } from "../spikes.js";
@@ -28,6 +28,45 @@ export function internalExclusion(cfg) {
   return ids.length && dim ? not(inList(dim, ids)) : null;
 }
 export const internalLabel = (cfg, id) => (id && cfg.internalUsers?.ids?.[id]) || null;
+
+/**
+ * Ranked top-N reports under the traffic comparisons, `{key: body}` in and
+ * `{key: payload | {error}}` out like ga.parts. Each body's `limit` is the
+ * rows wanted per segment. GA's limit counts every segment's rows together,
+ * so each asks for limit × comparisons; a segment that still comes back short
+ * while GA held more rows (larger segments crowd it out of the shared
+ * ranking) is asked for again alone, its comparison's filter folded into the
+ * body's, and its rows spliced back in. Every segment is then cut to its
+ * limit. With no comparisons, plain parts.
+ */
+export async function rankedParts(ga, requests, comparisons) {
+  if (!comparisons) return ga.parts(requests);
+  const per = k => +(requests[k].limit || 10000);
+  const out = await ga.parts(Object.fromEntries(Object.entries(requests).map(([k, b]) =>
+    [k, { ...b, comparisons, limit: comparedLimit(per(k), comparisons) }])));
+  const again = {}, SEP = "\u0001";
+  for (const k of Object.keys(requests)) {
+    if (!out[k] || out[k].error) continue;
+    for (const c of shortSegments(out[k], per(k), comparisons))
+      again[`${k}${SEP}${c.name}`] = { ...requests[k], ...withFilter(and(requests[k].dimensionFilter, c.dimensionFilter)) };
+  }
+  if (Object.keys(again).length) {
+    for (const [key, q] of Object.entries(await ga.parts(again))) {
+      const [k, name] = key.split(SEP);
+      if (!q.error) out[k] = withSegmentRows(out[k], name, q);   // a refused re-ask leaves the segment short, not wrong
+    }
+  }
+  for (const k of Object.keys(requests))
+    if (out[k] && !out[k].error && isCompared(out[k])) out[k] = capSegments(out[k], per(k));
+  return out;
+}
+
+/** One ranked report: `body.limit` rows in every segment (see rankedParts). Throws GA's error. */
+export async function rankedReport(ga, body, comparisons) {
+  const { only } = await rankedParts(ga, { only: body }, comparisons);
+  if (only.error) throw new Error(only.error);
+  return only;
+}
 
 /** A segmented result's view for one segment, or the result itself when it has none. */
 export const segmentView = (data, seg) => (data && data.segments ? data.segments[seg] || data.segments.all : data);
@@ -90,11 +129,11 @@ export async function windowTotals(ga, win, comparisons = null) {
   const dimensionFilter = inList("dateHour", hours);
   const cmp = comparisons ? { comparisons, metricAggregations: ["TOTAL"] } : {};
   const p = await ga.runReport({ dateRanges, dimensionFilter, metrics: mets(["activeUsers", "sessions"]),
-                                 limit: comparisons ? 10 : 1, ...cmp });
+                                 limit: comparedLimit(1, comparisons), ...cmp });
   let splits;
   try {
     const q = await ga.runReport({ dateRanges, dimensionFilter, dimensions: dims(["newVsReturning"]),
-      metrics: mets(["activeUsers"]), limit: comparisons ? 30 : 10, ...(comparisons ? { comparisons } : {}) });
+      metrics: mets(["activeUsers"]), limit: comparedLimit(10, comparisons), ...(comparisons ? { comparisons } : {}) });
     const fold = rows => {
       const by = Object.fromEntries(rows.map(r => [String(r.newVsReturning).toLowerCase(), r.activeUsers]));
       return { newUsers: by.new ?? 0, returningUsers: by.returning ?? 0 };
@@ -247,6 +286,9 @@ export async function realtime(ga, cfg) {
 
 // ---- breakdowns -------------------------------------------------------------------
 
+/** Rows per breakdown, in every segment. */
+export const BREAKDOWN_ROWS = 10;
+
 /**
  * Whole-day breakdowns. activeUsers has no honest hourly form (summing it over
  * hours counts a person once per hour), so these cover whole days, and under
@@ -256,16 +298,15 @@ export async function breakdowns(ga, cfg, minutes) {
   const m = Math.max(minutes, MINUTES_PER_DAY);
   const dateRanges = [{ startDate: rangeStart(m), endDate: "today" }];
   const comparisons = comparisonsFor(cfg);
-  const reqs = cmp => {
-    const out = {};
-    for (const b of cfg.breakdowns) {
-      out[b.key] = { dateRanges, dimensions: dims([b.dimension]), metrics: mets(["activeUsers"]), limit: 10,
-                     orderBys: [{ metric: { metricName: "activeUsers" }, desc: true }], ...(cmp ? { comparisons: cmp } : {}) };
-      if (b.pairEvent) out[`${b.key}:pair`] = { dateRanges, dimensions: dims([b.dimension]), metrics: mets(["eventCount"]),
-        dimensionFilter: and(events([b.pairEvent]), internalExclusion(cfg)), limit: 50, ...(cmp ? { comparisons: cmp } : {}) };
-    }
-    return out;
-  };
+  // Each limit is per segment: rankedParts asks GA for room for all of them.
+  const reqs = {};
+  for (const b of cfg.breakdowns) {
+    reqs[b.key] = { dateRanges, dimensions: dims([b.dimension]), metrics: mets(["activeUsers"]), limit: BREAKDOWN_ROWS,
+                    orderBys: [{ metric: { metricName: "activeUsers" }, desc: true }] };
+    if (b.pairEvent) reqs[`${b.key}:pair`] = { dateRanges, dimensions: dims([b.dimension]), metrics: mets(["eventCount"]),
+      dimensionFilter: and(events([b.pairEvent]), internalExclusion(cfg)), limit: 50,
+      orderBys: [{ metric: { metricName: "eventCount" }, desc: true }] };
+  }
   const build = (payloads, compared) => {
     const per = Object.fromEntries((compared ? SEGMENTS : ["all"]).map(s => [s, { items: {} }]));
     for (const b of cfg.breakdowns) {
@@ -276,7 +317,7 @@ export async function breakdowns(ga, cfg, minutes) {
         if (split[seg]?.error) { per[seg].items[b.key] = { error: split[seg].error }; continue; }
         const pair = splitQ && !splitQ[seg]?.error
           ? Object.fromEntries(gaRows(splitQ[seg], [b.dimension], ["eventCount"]).map(r => [r[b.dimension], r.eventCount])) : null;
-        const rows = gaRows(split[seg], [b.dimension], ["activeUsers"]).slice(0, 10)
+        const rows = gaRows(split[seg], [b.dimension], ["activeUsers"]).slice(0, BREAKDOWN_ROWS)
           .map(r => ({ name: r[b.dimension], users: r.activeUsers, ...(pair ? { pair: pair[r[b.dimension]] || 0 } : {}) }));
         per[seg].items[b.key] = { rows, pairError: splitQ?.[seg]?.error || null };
       }
@@ -284,7 +325,7 @@ export async function breakdowns(ga, cfg, minutes) {
     return per;
   };
   if (comparisons) {
-    const payloads = await ga.parts(reqs(comparisons));
+    const payloads = await rankedParts(ga, reqs, comparisons);
     const answered = cfg.breakdowns.some(b => payloads[b.key] && !payloads[b.key].error);
     if (answered) {
       try {
@@ -293,7 +334,7 @@ export async function breakdowns(ga, cfg, minutes) {
       } catch (e) { /* comparisons not honoured: fall through to plain */ }
     }
   }
-  const per = build(await ga.parts(reqs(null)), false);
+  const per = build(await ga.parts(reqs), false);
   return { ...per.all, segments: null, segmentsError: comparisons ? NO_SEGMENTS : null, minutes: m };
 }
 
@@ -381,7 +422,8 @@ export async function funnel(ga, cfg, minutes) {
   const reqs = funnelRequests(cfg, minutes);
   const comparisons = comparisonsFor(cfg);
   if (comparisons) {
-    const withCmp = Object.fromEntries(Object.entries(reqs).map(([k, b]) => [k, COMPARED_PART(k) ? { ...b, comparisons } : b]));
+    const withCmp = Object.fromEntries(Object.entries(reqs).map(([k, b]) => [k, COMPARED_PART(k)
+      ? { ...b, comparisons, limit: comparedLimit(b.limit, comparisons) } : b]));
     const payloads = await ga.parts(withCmp);
     try {
       const per = Object.fromEntries(SEGMENTS.map(s => [s, {}]));
@@ -477,7 +519,8 @@ export async function spikeDrill(ga, cfg, start, end) {
   const dateRanges = [{ startDate: isoDay(hours[0]), endDate: isoDay(hours[hours.length - 1]) }];
   const comparisons = comparisonsFor(cfg);
   const body = (b, cmp) => ({ dateRanges, dimensions: dims(["dateHour", b.dimension]), metrics: mets(["activeUsers"]),
-                              dimensionFilter: inList("dateHour", hours), limit: 10000, ...(cmp ? { comparisons: cmp } : {}) });
+                              dimensionFilter: inList("dateHour", hours), limit: comparedLimit(10000, cmp),
+                              ...(cmp ? { comparisons: cmp } : {}) });
   const read = (p, b, compared) => {
     if (!compared) return gaRows(p, ["dateHour", b.dimension], ["activeUsers"])
       .map(r => ({ ts: r.dateHour, name: r[b.dimension], users: r.activeUsers, segment: "all" }));
